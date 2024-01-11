@@ -6,7 +6,7 @@
 
 Name:		gnome-online-accounts
 Version:	3.40.0
-Release:	2%{?dist}
+Release:	3%{?dist}
 Summary:	Single sign-on framework for GNOME
 
 License:	LGPLv2+
@@ -14,11 +14,13 @@ URL:		https://wiki.gnome.org/Projects/GnomeOnlineAccounts
 Source0:	https://download.gnome.org/sources/gnome-online-accounts/3.40/%{name}-%{version}.tar.xz
 
 # https://pagure.io/fedora-workstation/issue/83
-Patch0:		0001-Remove-Documents-support.patch
+Patch:		0001-Remove-Documents-support.patch
 
 # https://gitlab.gnome.org/GNOME/gnome-online-accounts/-/issues/63
 # https://bugzilla.redhat.com/show_bug.cgi?id=1913641
-Patch1:		0001-google-Remove-Photos-support.patch
+Patch:		0001-google-Remove-Photos-support.patch
+
+Patch:		kerberos-fixes.patch
 
 BuildRequires:	pkgconfig(gcr-3)
 BuildRequires:	pkgconfig(gio-2.0) >= %{glib2_version}
@@ -37,6 +39,7 @@ BuildRequires:	pkgconfig(rest-0.7)
 BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	vala
 BuildRequires:	make
+BuildRequires:	git
 
 Requires:	glib2%{?_isa} >= %{glib2_version}
 Requires:	gtk3%{?_isa} >= %{gtk3_version}
@@ -58,9 +61,7 @@ The %{name}-devel package contains libraries and header files for
 developing applications that use %{name}.
 
 %prep
-%setup -q
-%patch0 -p1
-%patch1 -p1
+%autosetup -S git
 
 %build
 %configure \
@@ -71,6 +72,7 @@ developing applications that use %{name}.
   --disable-media-server \
   --disable-silent-rules \
   --disable-static \
+  --enable-compile-warnings=yes \
   --enable-documentation \
   --enable-fedora \
   --enable-exchange \
@@ -125,6 +127,10 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %{_datadir}/vala/
 
 %changelog
+* Tue Jun 06 2023 Ray Strode <rstrode@redhat.com> - 3.40.0-3
+- Backport various kerberos fixes from upstream
+  Resolves: #2177765
+
 * Mon Aug 09 2021 Mohan Boddu <mboddu@redhat.com> - 3.40.0-2
 - Rebuilt for IMA sigs, glibc 2.34, aarch64 flags
   Related: rhbz#1991688
