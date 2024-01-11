@@ -1,0 +1,229 @@
+diff -up gnome-online-accounts-3.28.2/src/goabackend/goautils.c.mute-debug-prints gnome-online-accounts-3.28.2/src/goabackend/goautils.c
+--- gnome-online-accounts-3.28.2/src/goabackend/goautils.c.mute-debug-prints	2019-02-10 20:18:08.000000000 +0100
++++ gnome-online-accounts-3.28.2/src/goabackend/goautils.c	2022-09-02 12:02:45.020910337 +0200
+@@ -380,7 +380,7 @@ goa_utils_delete_credentials_for_id_sync
+                               NULL);
+   if (sec_error != NULL)
+     {
+-      g_warning ("secret_password_clear_sync() failed: %s", sec_error->message);
++      g_debug ("secret_password_clear_sync() failed: %s", sec_error->message);
+       g_set_error_literal (error,
+                            GOA_ERROR,
+                            GOA_ERROR_FAILED, /* TODO: more specific */
+@@ -428,7 +428,7 @@ goa_utils_lookup_credentials_sync (GoaPr
+                                           NULL);
+   if (sec_error != NULL)
+     {
+-      g_warning ("secret_password_lookup_sync() failed: %s", sec_error->message);
++      g_debug ("secret_password_lookup_sync() failed: %s", sec_error->message);
+       g_set_error_literal (error,
+                            GOA_ERROR,
+                            GOA_ERROR_FAILED, /* TODO: more specific */
+@@ -438,7 +438,7 @@ goa_utils_lookup_credentials_sync (GoaPr
+     }
+   else if (password == NULL)
+     {
+-      g_warning ("secret_password_lookup_sync() returned NULL");
++      g_debug ("secret_password_lookup_sync() returned NULL");
+       g_set_error_literal (error,
+                            GOA_ERROR,
+                            GOA_ERROR_FAILED, /* TODO: more specific */
+@@ -509,7 +509,7 @@ goa_utils_store_credentials_for_id_sync
+                                    "goa-identity", password_key,
+                                    NULL))
+     {
+-      g_warning ("secret_password_store_sync() failed: %s", sec_error->message);
++      g_debug ("secret_password_store_sync() failed: %s", sec_error->message);
+       g_set_error_literal (error,
+                            GOA_ERROR,
+                            GOA_ERROR_FAILED, /* TODO: more specific */
+@@ -562,11 +562,11 @@ goa_utils_keyfile_copy_group (GKeyFile
+   keys = g_key_file_get_keys (src_key_file, src_group_name, NULL, &error);
+   if (error != NULL)
+     {
+-      g_warning ("Error getting keys from group %s: %s (%s, %d)",
+-                 src_group_name,
+-                 error->message,
+-                 g_quark_to_string (error->domain),
+-                 error->code);
++      g_debug ("Error getting keys from group %s: %s (%s, %d)",
++               src_group_name,
++               error->message,
++               g_quark_to_string (error->domain),
++               error->code);
+       g_error_free (error);
+       goto out;
+     }
+@@ -580,12 +580,12 @@ goa_utils_keyfile_copy_group (GKeyFile
+       src_value = g_key_file_get_value (src_key_file, src_group_name, keys[i], &error);
+       if (error != NULL)
+         {
+-          g_warning ("Error reading key %s from group %s: %s (%s, %d)",
+-                     keys[i],
+-                     src_group_name,
+-                     error->message,
+-                     g_quark_to_string (error->domain),
+-                     error->code);
++          g_debug ("Error reading key %s from group %s: %s (%s, %d)",
++                   keys[i],
++                   src_group_name,
++                   error->message,
++                   g_quark_to_string (error->domain),
++                   error->code);
+           g_error_free (error);
+           continue;
+         }
+@@ -597,12 +597,12 @@ goa_utils_keyfile_copy_group (GKeyFile
+           if (!g_error_matches (error, G_KEY_FILE_ERROR, G_KEY_FILE_ERROR_GROUP_NOT_FOUND)
+               && !g_error_matches (error, G_KEY_FILE_ERROR, G_KEY_FILE_ERROR_KEY_NOT_FOUND))
+             {
+-              g_warning ("Error reading key %s from group %s: %s (%s, %d)",
+-                         keys[i],
+-                         src_group_name,
+-                         error->message,
+-                         g_quark_to_string (error->domain),
+-                         error->code);
++              g_debug ("Error reading key %s from group %s: %s (%s, %d)",
++                       keys[i],
++                       src_group_name,
++                       error->message,
++                       g_quark_to_string (error->domain),
++                       error->code);
+             }
+ 
+           g_error_free (error);
+@@ -635,12 +635,12 @@ goa_utils_keyfile_get_boolean (GKeyFile
+     {
+       if (!g_error_matches (error, G_KEY_FILE_ERROR, G_KEY_FILE_ERROR_KEY_NOT_FOUND))
+         {
+-          g_warning ("Error reading key %s from group %s in keyfile: %s (%s, %d)",
+-                     key,
+-                     group_name,
+-                     error->message,
+-                     g_quark_to_string (error->domain),
+-                     error->code);
++          g_debug ("Error reading key %s from group %s in keyfile: %s (%s, %d)",
++                   key,
++                   group_name,
++                   error->message,
++                   g_quark_to_string (error->domain),
++                   error->code);
+         }
+ 
+       g_error_free (error);
+@@ -667,11 +667,11 @@ goa_utils_keyfile_remove_key (GoaAccount
+                                   G_KEY_FILE_KEEP_COMMENTS | G_KEY_FILE_KEEP_TRANSLATIONS,
+                                   &error))
+     {
+-      g_warning ("Error loading keyfile %s: %s (%s, %d)",
+-                 path,
+-                 error->message,
+-                 g_quark_to_string (error->domain),
+-                 error->code);
++      g_debug ("Error loading keyfile %s: %s (%s, %d)",
++               path,
++               error->message,
++               g_quark_to_string (error->domain),
++               error->code);
+       g_error_free (error);
+       goto out;
+     }
+@@ -683,7 +683,7 @@ goa_utils_keyfile_remove_key (GoaAccount
+   if (!g_key_file_save_to_file (key_file, path, &error))
+     {
+       g_prefix_error (&error, "Error writing key-value-file %s: ", path);
+-      g_warning ("%s (%s, %d)", error->message, g_quark_to_string (error->domain), error->code);
++      g_debug ("%s (%s, %d)", error->message, g_quark_to_string (error->domain), error->code);
+       g_error_free (error);
+       goto out;
+     }
+@@ -714,11 +714,11 @@ goa_utils_keyfile_set_boolean (GoaAccoun
+                                   G_KEY_FILE_KEEP_COMMENTS | G_KEY_FILE_KEEP_TRANSLATIONS,
+                                   &error))
+     {
+-      g_warning ("Error loading keyfile %s: %s (%s, %d)",
+-                 path,
+-                 error->message,
+-                 g_quark_to_string (error->domain),
+-                 error->code);
++      g_debug ("Error loading keyfile %s: %s (%s, %d)",
++               path,
++               error->message,
++               g_quark_to_string (error->domain),
++               error->code);
+       g_error_free (error);
+       goto out;
+     }
+@@ -727,12 +727,12 @@ goa_utils_keyfile_set_boolean (GoaAccoun
+   old_value = g_key_file_get_boolean (key_file, group, key, &error);
+   if (error != NULL)
+     {
+-      g_warning ("Error reading key %s from keyfile %s: %s (%s, %d)",
+-                 key,
+-                 path,
+-                 error->message,
+-                 g_quark_to_string (error->domain),
+-                 error->code);
++      g_debug ("Error reading key %s from keyfile %s: %s (%s, %d)",
++               key,
++               path,
++               error->message,
++               g_quark_to_string (error->domain),
++               error->code);
+       needs_update = TRUE;
+       g_error_free (error);
+     }
+@@ -750,7 +750,7 @@ goa_utils_keyfile_set_boolean (GoaAccoun
+   if (!g_key_file_save_to_file (key_file, path, &error))
+     {
+       g_prefix_error (&error, "Error writing key-value-file %s: ", path);
+-      g_warning ("%s (%s, %d)", error->message, g_quark_to_string (error->domain), error->code);
++      g_debug ("%s (%s, %d)", error->message, g_quark_to_string (error->domain), error->code);
+       g_error_free (error);
+       goto out;
+     }
+@@ -781,11 +781,11 @@ goa_utils_keyfile_set_string (GoaAccount
+                                   G_KEY_FILE_KEEP_COMMENTS | G_KEY_FILE_KEEP_TRANSLATIONS,
+                                   &error))
+     {
+-      g_warning ("Error loading keyfile %s: %s (%s, %d)",
+-                 path,
+-                 error->message,
+-                 g_quark_to_string (error->domain),
+-                 error->code);
++      g_debug ("Error loading keyfile %s: %s (%s, %d)",
++               path,
++               error->message,
++               g_quark_to_string (error->domain),
++               error->code);
+       g_error_free (error);
+       goto out;
+     }
+@@ -794,12 +794,12 @@ goa_utils_keyfile_set_string (GoaAccount
+   old_value = g_key_file_get_string (key_file, group, key, &error);
+   if (error != NULL)
+     {
+-      g_warning ("Error reading key %s from keyfile %s: %s (%s, %d)",
+-                 key,
+-                 path,
+-                 error->message,
+-                 g_quark_to_string (error->domain),
+-                 error->code);
++      g_debug ("Error reading key %s from keyfile %s: %s (%s, %d)",
++               key,
++               path,
++               error->message,
++               g_quark_to_string (error->domain),
++               error->code);
+       needs_update = TRUE;
+       g_error_free (error);
+     }
+@@ -817,7 +817,7 @@ goa_utils_keyfile_set_string (GoaAccount
+   if (!g_key_file_save_to_file (key_file, path, &error))
+     {
+       g_prefix_error (&error, "Error writing key-value-file %s: ", path);
+-      g_warning ("%s (%s, %d)", error->message, g_quark_to_string (error->domain), error->code);
++      g_debug ("%s (%s, %d)", error->message, g_quark_to_string (error->domain), error->code);
+       g_error_free (error);
+       goto out;
+     }
