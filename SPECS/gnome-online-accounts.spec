@@ -2,11 +2,10 @@
 %global glib2_version 2.52
 %global gtk3_version 3.19.12
 %global libsoup_version 2.42
-%global webkit2gtk3_version 2.26.0
 
 Name:		gnome-online-accounts
 Version:	3.40.0
-Release:	3%{?dist}
+Release:	6%{?dist}
 Summary:	Single sign-on framework for GNOME
 
 License:	LGPLv2+
@@ -21,6 +20,9 @@ Patch:		0001-Remove-Documents-support.patch
 Patch:		0001-google-Remove-Photos-support.patch
 
 Patch:		kerberos-fixes.patch
+Patch:		0003-Drop-dependency-on-WebKitGTK-139.patch
+
+Obsoletes:	gnome-online-accounts-oauth2 < 3.40.0-5
 
 BuildRequires:	pkgconfig(gcr-3)
 BuildRequires:	pkgconfig(gio-2.0) >= %{glib2_version}
@@ -31,7 +33,6 @@ BuildRequires:	pkgconfig(gobject-introspection-1.0)
 BuildRequires:	gettext >= %{gettext_version}
 BuildRequires:	gtk-doc
 BuildRequires:	krb5-devel
-BuildRequires:	pkgconfig(webkit2gtk-4.0) >= %{webkit2gtk3_version}
 BuildRequires:	pkgconfig(json-glib-1.0)
 BuildRequires:	pkgconfig(libsecret-1) >= 0.7
 BuildRequires:	pkgconfig(libsoup-2.4) >= %{libsoup_version}
@@ -40,11 +41,12 @@ BuildRequires:	pkgconfig(libxml-2.0)
 BuildRequires:	vala
 BuildRequires:	make
 BuildRequires:	git
+BuildRequires:	autoconf
+BuildRequires:	automake
 
 Requires:	glib2%{?_isa} >= %{glib2_version}
 Requires:	gtk3%{?_isa} >= %{gtk3_version}
 Requires:	libsoup%{?_isa} >= %{libsoup_version}
-Requires:	webkit2gtk3%{?_isa} >= %{webkit2gtk3_version}
 
 %description
 GNOME Online Accounts provides interfaces so that applications and libraries
@@ -64,6 +66,12 @@ developing applications that use %{name}.
 %autosetup -S git
 
 %build
+aclocal -I m4
+autoheader
+automake
+libtoolize
+autoconf
+
 %configure \
   --disable-facebook \
   --disable-flickr \
@@ -102,10 +110,10 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %{_libdir}/libgoa-backend-1.0.so.1
 %{_libdir}/libgoa-backend-1.0.so.1.0.0
 %dir %{_libdir}/goa-1.0
-%dir %{_libdir}/goa-1.0/web-extensions
-%{_libdir}/goa-1.0/web-extensions/libgoawebextension.so
 %{_prefix}/libexec/goa-daemon
 %{_prefix}/libexec/goa-identity-service
+%{_prefix}/libexec/goa-oauth2-handler
+%{_datadir}/applications/org.gnome.OnlineAccounts.OAuth2.desktop
 %{_datadir}/dbus-1/services/org.gnome.OnlineAccounts.service
 %{_datadir}/dbus-1/services/org.gnome.Identity.service
 %{_datadir}/icons/hicolor/*/apps/goa-*.svg
@@ -127,6 +135,16 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %{_datadir}/vala/
 
 %changelog
+* Wed Nov 15 2023 Milan Crha <mcrha@redhat.com> - 3.40.0-6
+- Related: RHEL-10492 (Add margin around OAuth2 prompt content)
+
+* Wed Nov 08 2023 Milan Crha <mcrha@redhat.com> - 3.40.0-5
+- Resolves: RHEL-10492 (Move account types that depend on WebKitGTK into separate optional subpackage)
+- backport upstream fix to use external browser for OAuth2
+
+* Wed Oct 11 2023 Milan Crha <mcrha@redhat.com> - 3.40.0-4
+- Resolves: RHEL-10492 (Move account types that depend on WebKitGTK into separate optional subpackage)
+
 * Tue Jun 06 2023 Ray Strode <rstrode@redhat.com> - 3.40.0-3
 - Backport various kerberos fixes from upstream
   Resolves: #2177765
