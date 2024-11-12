@@ -5,7 +5,7 @@
 
 Name:		gnome-online-accounts
 Version:	3.40.0
-Release:	6%{?dist}
+Release:	7%{?dist}
 Summary:	Single sign-on framework for GNOME
 
 License:	LGPLv2+
@@ -21,6 +21,7 @@ Patch:		0001-google-Remove-Photos-support.patch
 
 Patch:		kerberos-fixes.patch
 Patch:		0003-Drop-dependency-on-WebKitGTK-139.patch
+Patch:		0004-Restrict-Services.patch
 
 Obsoletes:	gnome-online-accounts-oauth2 < 3.40.0-5
 
@@ -135,6 +136,9 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %{_datadir}/vala/
 
 %changelog
+* Wed Jun 12 2024 Milan Crha <mcrha@redhat.com> - 3.40.0-7
+- Resolves: RHEL-40831 (Use /etc/goa.conf to disable features for providers and whole providers)
+
 * Wed Nov 15 2023 Milan Crha <mcrha@redhat.com> - 3.40.0-6
 - Related: RHEL-10492 (Add margin around OAuth2 prompt content)
 

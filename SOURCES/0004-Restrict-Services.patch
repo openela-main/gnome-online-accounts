@@ -1,0 +1,690 @@
+diff --git a/data/org.gnome.online-accounts.gschema.xml b/data/org.gnome.online-accounts.gschema.xml
+index 46b79b2..4419d61 100644
+--- a/data/org.gnome.online-accounts.gschema.xml
++++ b/data/org.gnome.online-accounts.gschema.xml
+@@ -6,6 +6,8 @@
+       <summary>List of providers that are allowed to be loaded</summary>
+       <description>
+         A list of strings representing the providers that are allowed to be loaded (default: 'all'). This is only evaluated on startup.
++
++        Deprecated: use goa.conf in the system config directory instead, with a key [providers] enable=all instead. The key is comma-separated list of the provider names.
+       </description>
+     </key>
+   </schema>
+diff --git a/src/goabackend/Makefile.am b/src/goabackend/Makefile.am
+index c7e00a4..68795f1 100644
+--- a/src/goabackend/Makefile.am
++++ b/src/goabackend/Makefile.am
+@@ -12,6 +12,7 @@ AM_CPPFLAGS = 							\
+ 	-DG_LOG_DOMAIN=\"GoaBackend\"				\
+ 	-DGOA_BACKEND_COMPILATION				\
+ 	-DGOA_API_IS_SUBJECT_TO_CHANGE				\
++	-DGOA_CONF_FILENAME=\""$(sysconfdir)/goa.conf"\"	\
+ 	-DPACKAGE_LIBEXEC_DIR=\""$(libexecdir)"\" 		\
+ 	-DPACKAGE_SYSCONF_DIR=\""$(sysconfdir)"\" 		\
+ 	-DPACKAGE_DATA_DIR=\""$(pkgdatadir)"\" 			\
+diff --git a/src/goabackend/goaexchangeprovider.c b/src/goabackend/goaexchangeprovider.c
+index 46d4314..826549e 100644
+--- a/src/goabackend/goaexchangeprovider.c
++++ b/src/goabackend/goaexchangeprovider.c
+@@ -86,6 +86,8 @@ build_object (GoaProvider         *provider,
+   GoaExchange *exchange = NULL;
+   GoaMail *mail = NULL;
+   GoaPasswordBased *password_based = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gboolean calendar_enabled;
+   gboolean contacts_enabled;
+   gboolean mail_enabled;
+@@ -115,11 +117,14 @@ build_object (GoaProvider         *provider,
+                         NULL);
+     }
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+ 
+   /* Email */
+   mail = goa_object_get_mail (GOA_OBJECT (object));
+-  mail_enabled = g_key_file_get_boolean (key_file, group, "MailEnabled", NULL);
++  mail_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_MAIL) &&
++                 g_key_file_get_boolean (key_file, group, "MailEnabled", NULL);
+   if (mail_enabled)
+     {
+       if (mail == NULL)
+@@ -139,13 +144,17 @@ build_object (GoaProvider         *provider,
+     }
+ 
+   /* Calendar */
+-  calendar_enabled = g_key_file_get_boolean (key_file, group, "CalendarEnabled", NULL);
++  calendar_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_CALENDAR) &&
++                     g_key_file_get_boolean (key_file, group, "CalendarEnabled", NULL);
+   goa_object_skeleton_attach_calendar (object, NULL, calendar_enabled, FALSE);
+ 
+   /* Contacts */
+-  contacts_enabled = g_key_file_get_boolean (key_file, group, "ContactsEnabled", NULL);
++  contacts_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_CONTACTS) &&
++                     g_key_file_get_boolean (key_file, group, "ContactsEnabled", NULL);
+   goa_object_skeleton_attach_contacts (object, NULL, contacts_enabled, FALSE);
+ 
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   /* Exchange */
+   exchange = goa_object_get_exchange (GOA_OBJECT (object));
+   if (exchange == NULL)
+diff --git a/src/goabackend/goafacebookprovider.c b/src/goabackend/goafacebookprovider.c
+index c1d35d0..80ee5e2 100644
+--- a/src/goabackend/goafacebookprovider.c
++++ b/src/goabackend/goafacebookprovider.c
+@@ -253,6 +253,8 @@ build_object (GoaProvider         *provider,
+               GError             **error)
+ {
+   GoaAccount *account = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gboolean photos_enabled;
+   gboolean maps_enabled;
+   gboolean ret = FALSE;
+@@ -267,10 +269,13 @@ build_object (GoaProvider         *provider,
+                                                                               error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+ 
+   /* Photos */
+-  photos_enabled = g_key_file_get_boolean (key_file, group, "PhotosEnabled", NULL);
++  photos_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_PHOTOS) &&
++                   g_key_file_get_boolean (key_file, group, "PhotosEnabled", NULL);
+   goa_object_skeleton_attach_photos (object, photos_enabled);
+ 
+   if (just_added)
+@@ -284,9 +289,12 @@ build_object (GoaProvider         *provider,
+     }
+ 
+   /* Maps */
+-  maps_enabled = g_key_file_get_boolean (key_file, group, "MapsEnabled", NULL);
++  maps_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_MAPS) &&
++                 g_key_file_get_boolean (key_file, group, "MapsEnabled", NULL);
+   goa_object_skeleton_attach_maps (object, maps_enabled);
+ 
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   if (just_added)
+     {
+       goa_account_set_maps_disabled (account, !maps_enabled);
+diff --git a/src/goabackend/goafedoraprovider.c b/src/goabackend/goafedoraprovider.c
+index 36cb808..cbc8062 100644
+--- a/src/goabackend/goafedoraprovider.c
++++ b/src/goabackend/goafedoraprovider.c
+@@ -348,6 +348,8 @@ build_object (GoaProvider         *provider,
+ {
+   GoaAccount   *account;
+   GoaTicketing *ticketing = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gboolean      ticketing_enabled;
+   gboolean      ret = FALSE;
+ 
+@@ -360,10 +362,15 @@ build_object (GoaProvider         *provider,
+                                                                             error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+ 
+   ticketing = goa_object_get_ticketing (GOA_OBJECT (object));
+-  ticketing_enabled = g_key_file_get_boolean (key_file, group, "TicketingEnabled", NULL);
++  ticketing_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_TICKETING) &&
++                      g_key_file_get_boolean (key_file, group, "TicketingEnabled", NULL);
++
++  g_clear_pointer (&goa_conf, g_key_file_free);
+ 
+   if (ticketing_enabled)
+     {
+diff --git a/src/goabackend/goafoursquareprovider.c b/src/goabackend/goafoursquareprovider.c
+index def21cb..98a5431 100644
+--- a/src/goabackend/goafoursquareprovider.c
++++ b/src/goabackend/goafoursquareprovider.c
+@@ -261,6 +261,8 @@ build_object (GoaProvider         *provider,
+               GError             **error)
+ {
+   GoaAccount *account = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gboolean maps_enabled;
+   gboolean ret = FALSE;
+ 
+@@ -274,12 +276,17 @@ build_object (GoaProvider         *provider,
+                                                                                 error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+ 
+   /* Maps */
+-  maps_enabled = g_key_file_get_boolean (key_file, group, "MapsEnabled", NULL);
++  maps_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_MAPS) &&
++                 g_key_file_get_boolean (key_file, group, "MapsEnabled", NULL);
+   goa_object_skeleton_attach_maps (object, maps_enabled);
+ 
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   if (just_added)
+     {
+       goa_account_set_maps_disabled (account, !maps_enabled);
+diff --git a/src/goabackend/goagoogleprovider.c b/src/goabackend/goagoogleprovider.c
+index 0fb40c3..7a4a717 100644
+--- a/src/goabackend/goagoogleprovider.c
++++ b/src/goabackend/goagoogleprovider.c
+@@ -271,6 +271,8 @@ build_object (GoaProvider         *provider,
+ {
+   GoaAccount *account = NULL;
+   GoaMail *mail = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gchar *uri_caldav;
+   gchar *uri_drive;
+   gboolean ret = FALSE;
+@@ -291,12 +293,15 @@ build_object (GoaProvider         *provider,
+                                                                             error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+   email_address = goa_account_get_identity (account);
+ 
+   /* Email */
+   mail = goa_object_get_mail (GOA_OBJECT (object));
+-  mail_enabled = g_key_file_get_boolean (key_file, group, "MailEnabled", NULL);
++  mail_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_MAIL) &&
++                 g_key_file_get_boolean (key_file, group, "MailEnabled", NULL);
+   if (mail_enabled)
+     {
+       if (mail == NULL)
+@@ -326,28 +331,34 @@ build_object (GoaProvider         *provider,
+     }
+ 
+   /* Calendar */
+-  calendar_enabled = g_key_file_get_boolean (key_file, group, "CalendarEnabled", NULL);
++  calendar_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_CALENDAR) &&
++                     g_key_file_get_boolean (key_file, group, "CalendarEnabled", NULL);
+   uri_caldav = g_strconcat ("https://apidata.googleusercontent.com/caldav/v2/", email_address, "/user", NULL);
+   goa_object_skeleton_attach_calendar (object, uri_caldav, calendar_enabled, FALSE);
+   g_free (uri_caldav);
+ 
+   /* Contacts */
+-  contacts_enabled = g_key_file_get_boolean (key_file, group, "ContactsEnabled", NULL);
++  contacts_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_CONTACTS) &&
++                     g_key_file_get_boolean (key_file, group, "ContactsEnabled", NULL);
+   goa_object_skeleton_attach_contacts (object,
+                                        "https://www.googleapis.com/.well-known/carddav",
+                                        contacts_enabled,
+                                        FALSE);
+ 
+   /* Files */
+-  files_enabled = g_key_file_get_boolean (key_file, group, "FilesEnabled", NULL);
++  files_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_FILES) &&
++                  g_key_file_get_boolean (key_file, group, "FilesEnabled", NULL);
+   uri_drive = g_strconcat ("google-drive://", email_address, "/", NULL);
+   goa_object_skeleton_attach_files (object, uri_drive, files_enabled, FALSE);
+   g_free (uri_drive);
+ 
+   /* Printers */
+-  printers_enabled = g_key_file_get_boolean (key_file, group, "PrintersEnabled", NULL);
++  printers_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_PRINTERS) &&
++                     g_key_file_get_boolean (key_file, group, "PrintersEnabled", NULL);
+   goa_object_skeleton_attach_printers (object, printers_enabled);
+ 
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   if (just_added)
+     {
+       goa_account_set_mail_disabled (account, !mail_enabled);
+diff --git a/src/goabackend/goaimapsmtpprovider.c b/src/goabackend/goaimapsmtpprovider.c
+index 811d48c..abaa4d9 100644
+--- a/src/goabackend/goaimapsmtpprovider.c
++++ b/src/goabackend/goaimapsmtpprovider.c
+@@ -90,6 +90,8 @@ build_object (GoaProvider         *provider,
+   GoaAccount *account = NULL;
+   GoaMail *mail = NULL;
+   GoaPasswordBased *password_based = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gboolean enabled;
+   gboolean imap_accept_ssl_errors;
+   gboolean imap_use_ssl;
+@@ -132,11 +134,17 @@ build_object (GoaProvider         *provider,
+                         NULL);
+     }
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+ 
+   /* Email */
+   mail = goa_object_get_mail (GOA_OBJECT (object));
+-  enabled = g_key_file_get_boolean (key_file, group, "Enabled", NULL);
++  enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_MAIL) &&
++            g_key_file_get_boolean (key_file, group, "Enabled", NULL);
++
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   if (enabled)
+     {
+       if (mail == NULL)
+diff --git a/src/goabackend/goakerberosprovider.c b/src/goabackend/goakerberosprovider.c
+index b3ffc3f..a43dc74 100644
+--- a/src/goabackend/goakerberosprovider.c
++++ b/src/goabackend/goakerberosprovider.c
+@@ -380,6 +380,8 @@ build_object (GoaProvider         *provider,
+ {
+   GoaAccount   *account;
+   GoaTicketing *ticketing = NULL;
++  GKeyFile     *goa_conf;
++  const gchar  *provider_type;
+   gboolean      ticketing_enabled;
+   gboolean      ret = FALSE;
+ 
+@@ -392,10 +394,15 @@ build_object (GoaProvider         *provider,
+                                                                               error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+ 
+   ticketing = goa_object_get_ticketing (GOA_OBJECT (object));
+-  ticketing_enabled = g_key_file_get_boolean (key_file, group, "TicketingEnabled", NULL);
++  ticketing_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_TICKETING) &&
++                      g_key_file_get_boolean (key_file, group, "TicketingEnabled", NULL);
++
++  g_clear_pointer (&goa_conf, g_key_file_free);
+ 
+   if (ticketing_enabled)
+     {
+diff --git a/src/goabackend/goalastfmprovider.c b/src/goabackend/goalastfmprovider.c
+index cb9a6f2..1cddadf 100644
+--- a/src/goabackend/goalastfmprovider.c
++++ b/src/goabackend/goalastfmprovider.c
+@@ -100,6 +100,8 @@ build_object (GoaProvider         *provider,
+ {
+   GoaAccount *account;
+   GoaMusic *music = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gboolean music_enabled;
+   gboolean ret = FALSE;
+ 
+@@ -115,11 +117,17 @@ build_object (GoaProvider         *provider,
+                                                                             error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+ 
+   /* Music */
+   music = goa_object_get_music (GOA_OBJECT (object));
+-  music_enabled = g_key_file_get_boolean (key_file, group, "MusicEnabled", NULL);
++  music_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_MUSIC) &&
++                  g_key_file_get_boolean (key_file, group, "MusicEnabled", NULL);
++
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   if (music_enabled)
+     {
+       if (music == NULL)
+diff --git a/src/goabackend/goamediaserverprovider.c b/src/goabackend/goamediaserverprovider.c
+index 9ffd2a0..7c2d61c 100644
+--- a/src/goabackend/goamediaserverprovider.c
++++ b/src/goabackend/goamediaserverprovider.c
+@@ -88,6 +88,8 @@ build_object (GoaProvider        *provider,
+   gboolean ret;
+   GoaAccount *account;
+   GoaMediaServer *mediaserver;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   const gchar *udn;
+   gboolean photos_enabled;
+ 
+@@ -106,13 +108,18 @@ build_object (GoaProvider        *provider,
+                                                                                   error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+   udn = goa_account_get_identity (account);
+ 
+   /* Photos */
+-  photos_enabled = g_key_file_get_boolean (key_file, group, "PhotosEnabled", NULL);
++  photos_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_PHOTOS) &&
++                   g_key_file_get_boolean (key_file, group, "PhotosEnabled", NULL);
+   goa_object_skeleton_attach_photos (object, photos_enabled);
+ 
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   /* Media Server */
+   mediaserver = goa_object_get_media_server (GOA_OBJECT (object));
+   if (mediaserver == NULL)
+diff --git a/src/goabackend/goaowncloudprovider.c b/src/goabackend/goaowncloudprovider.c
+index d142966..b996e48 100644
+--- a/src/goabackend/goaowncloudprovider.c
++++ b/src/goabackend/goaowncloudprovider.c
+@@ -136,6 +136,8 @@ build_object (GoaProvider         *provider,
+               GError             **error)
+ {
+   GoaAccount *account = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gchar *uri_caldav;
+   gchar *uri_carddav;
+   gchar *uri_webdav;
+@@ -173,6 +175,8 @@ build_object (GoaProvider         *provider,
+                         NULL);
+     }
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+   identity = goa_account_get_identity (account);
+   uri_string = g_key_file_get_string (key_file, group, "Uri", NULL);
+@@ -183,23 +187,28 @@ build_object (GoaProvider         *provider,
+   accept_ssl_errors = g_key_file_get_boolean (key_file, group, "AcceptSslErrors", NULL);
+ 
+   /* Calendar */
+-  calendar_enabled = g_key_file_get_boolean (key_file, group, "CalendarEnabled", NULL);
++  calendar_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_CALENDAR) &&
++                     g_key_file_get_boolean (key_file, group, "CalendarEnabled", NULL);
+   uri_caldav = uri_to_string_with_path (uri, CALDAV_ENDPOINT);
+   goa_object_skeleton_attach_calendar (object, uri_caldav, calendar_enabled, accept_ssl_errors);
+   g_free (uri_caldav);
+ 
+   /* Contacts */
+-  contacts_enabled = g_key_file_get_boolean (key_file, group, "ContactsEnabled", NULL);
++  contacts_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_CONTACTS) &&
++                     g_key_file_get_boolean (key_file, group, "ContactsEnabled", NULL);
+   uri_carddav = uri_to_string_with_path (uri, CARDDAV_ENDPOINT);
+   goa_object_skeleton_attach_contacts (object, uri_carddav, contacts_enabled, accept_ssl_errors);
+   g_free (uri_carddav);
+ 
+   /* Files */
+-  files_enabled = g_key_file_get_boolean (key_file, group, "FilesEnabled", NULL);
++  files_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_FILES) &&
++                  g_key_file_get_boolean (key_file, group, "FilesEnabled", NULL);
+   uri_webdav = get_webdav_uri (uri);
+   goa_object_skeleton_attach_files (object, uri_webdav, files_enabled, accept_ssl_errors);
+   g_free (uri_webdav);
+ 
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   if (just_added)
+     {
+       goa_account_set_calendar_disabled (account, !calendar_enabled);
+diff --git a/src/goabackend/goaprovider.c b/src/goabackend/goaprovider.c
+index 9712cd2..d178209 100644
+--- a/src/goabackend/goaprovider.c
++++ b/src/goabackend/goaprovider.c
+@@ -375,6 +375,151 @@ goa_provider_get_provider_group (GoaProvider *self)
+   return GOA_PROVIDER_GET_CLASS (self)->get_provider_group (self);
+ }
+ 
++static const gchar *
++goa_get_feature_alias (GoaProviderFeatures feature)
++{
++  switch (feature) {
++  case GOA_PROVIDER_FEATURE_MAIL:
++    return "mail";
++  case GOA_PROVIDER_FEATURE_CALENDAR:
++    return "calendar";
++  case GOA_PROVIDER_FEATURE_CONTACTS:
++    return "contacts";
++  case GOA_PROVIDER_FEATURE_CHAT:
++    return "chat";
++  case GOA_PROVIDER_FEATURE_DOCUMENTS:
++    return "documents";
++  case GOA_PROVIDER_FEATURE_PHOTOS:
++    return "photos";
++  case GOA_PROVIDER_FEATURE_FILES:
++    return "files";
++  case GOA_PROVIDER_FEATURE_TICKETING:
++    return "ticketing";
++  case GOA_PROVIDER_FEATURE_READ_LATER:
++    return "read-later";
++  case GOA_PROVIDER_FEATURE_PRINTERS:
++    return "printers";
++  case GOA_PROVIDER_FEATURE_MAPS:
++    return "maps";
++  case GOA_PROVIDER_FEATURE_MUSIC:
++    return "music";
++  case GOA_PROVIDER_FEATURE_TODO:
++    return "todo";
++  case GOA_PROVIDER_FEATURE_BRANDED:
++  case GOA_PROVIDER_FEATURE_INVALID:
++    break;
++  }
++  return NULL;
++}
++
++/*
++ * goa_util_open_goa_conf:
++ *
++ * Reads goa.conf file from the system config directory and
++ * returns it for use for example by goa_util_provider_feature_is_enabled().
++ * It returns %NULL, when the file cannot be opened.
++ *
++ * Free the returned #GKeyFile with g_key_file_free(), when no longer needed.
++ *
++ * Returns: (nullable) (transfer full): a new #GKeyFile containing goa.conf
++ *    file, or %NULL, when it cannot be opened.
++ *
++ * Since: 3.40.0-7 / RHEL-40831
++ */
++GKeyFile *
++goa_util_open_goa_conf (void)
++{
++  GKeyFile *goa_conf;
++  GError *error = NULL;
++
++  goa_conf = g_key_file_new ();
++  if (!g_key_file_load_from_file (goa_conf, GOA_CONF_FILENAME, G_KEY_FILE_NONE, &error))
++    {
++      g_debug ("Failed to load '%s': %s", GOA_CONF_FILENAME, error ? error->message : "Unknown error");
++      g_clear_error (&error);
++      g_key_file_free (goa_conf);
++      goa_conf = NULL;
++    }
++
++  return goa_conf;
++}
++
++/*
++ * goa_util_provider_feature_is_enabled:
++ * @goa_conf: (nullable): a #GKeyFile with loaded goa.conf file, or %NULL
++ * @provider_type: a provider type string
++ * @feature: a feature to check, one of %GoaProviderFeatures
++ *
++ * Checks in the @goa_conf, whether the @provider_type can use
++ * the @feature. The @goa_conf is a %GKeyFile returned by
++ * goa_util_open_goa_conf(), it can be %NULL, in which case
++ * the @feature is considered enabled.
++ *
++ * Returns: %TRUE, when the @feature is enabled, %FALSE otherwise
++ *
++ * Since: 3.40.0-7 / RHEL-40831
++ */
++gboolean
++goa_util_provider_feature_is_enabled (GKeyFile *goa_conf,
++				      const gchar *provider_type,
++				      GoaProviderFeatures feature)
++{
++  GError *error = NULL;
++  const gchar *feature_alias;
++  gboolean enabled;
++
++  if (!goa_conf)
++    return TRUE;
++
++  g_return_val_if_fail (provider_type != NULL, TRUE);
++
++  feature_alias = goa_get_feature_alias (feature);
++  g_return_val_if_fail (feature_alias != NULL, TRUE);
++
++  enabled = g_key_file_get_boolean (goa_conf, provider_type, feature_alias, &error);
++  if (error)
++    {
++      g_clear_error (&error);
++      enabled = g_key_file_get_boolean (goa_conf, "all", feature_alias, &error);
++      if (error)
++        {
++          g_clear_error (&error);
++          enabled = TRUE;
++        }
++    }
++
++  return enabled;
++}
++
++static GoaProviderFeatures
++goa_provider_filter_features (GoaProvider *self,
++			      GoaProviderFeatures features)
++{
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
++  guint i;
++
++  goa_conf = goa_util_open_goa_conf ();
++  if (!goa_conf)
++    return features;
++
++  provider_type = goa_provider_get_provider_type (self);
++
++  for (i = 0; provider_features_info[i].property != NULL; i++)
++    {
++      GoaProviderFeatures feature = provider_features_info[i].feature;
++      if ((features & feature) != 0 &&
++	  !goa_util_provider_feature_is_enabled (goa_conf, provider_type, feature))
++        {
++          features = features & (~feature);
++        }
++    }
++
++  g_key_file_free (goa_conf);
++
++  return features;
++}
++
+ /**
+  * goa_provider_get_provider_features:
+  * @self: A #GoaProvider.
+@@ -391,7 +536,7 @@ goa_provider_get_provider_features (GoaProvider *self)
+ {
+   g_return_val_if_fail (GOA_IS_PROVIDER (self), GOA_PROVIDER_FEATURE_INVALID);
+   g_return_val_if_fail (GOA_PROVIDER_GET_CLASS (self)->get_provider_features != NULL, GOA_PROVIDER_FEATURE_INVALID);
+-  return GOA_PROVIDER_GET_CLASS (self)->get_provider_features (self);
++  return goa_provider_filter_features (self, GOA_PROVIDER_GET_CLASS (self)->get_provider_features (self));
+ }
+ 
+ /* ---------------------------------------------------------------------------------------------------- */
+@@ -979,14 +1124,35 @@ goa_provider_ensure_builtins_loaded (void)
+ 
+   if (g_once_init_enter (&once_init_value))
+     {
+-      GSettings *settings;
+-      gchar **whitelisted_providers;
++      GKeyFile *goa_conf;
++      gchar **whitelisted_providers = NULL;
+       guint i;
+       guint j;
+       gboolean all = FALSE;
+ 
+-      settings = g_settings_new (GOA_SETTINGS_SCHEMA);
+-      whitelisted_providers = g_settings_get_strv (settings, GOA_SETTINGS_WHITELISTED_PROVIDERS);
++      goa_conf = goa_util_open_goa_conf ();
++      if (goa_conf)
++        {
++          whitelisted_providers = g_key_file_get_string_list (goa_conf, "providers", "enable", NULL, NULL);
++          /* Let the empty array be like 'all' */
++          if (whitelisted_providers && !*whitelisted_providers)
++            {
++              g_strfreev (whitelisted_providers);
++              whitelisted_providers = g_new0 (gchar *, 2);
++              whitelisted_providers[0] = g_strdup ("all");
++              whitelisted_providers[1] = NULL;
++            }
++          g_clear_pointer (&goa_conf, g_key_file_free);
++        }
++
++      if (!whitelisted_providers)
++        {
++          GSettings *settings;
++
++          settings = g_settings_new (GOA_SETTINGS_SCHEMA);
++          whitelisted_providers = g_settings_get_strv (settings, GOA_SETTINGS_WHITELISTED_PROVIDERS);
++          g_object_unref (settings);
++        }
+ 
+       /* Enable everything if there is 'all'. */
+       for (i = 0; whitelisted_providers[i] != NULL; i++)
+@@ -1025,7 +1191,6 @@ goa_provider_ensure_builtins_loaded (void)
+ 
+     cleanup:
+       g_strfreev (whitelisted_providers);
+-      g_object_unref (settings);
+       g_once_init_leave (&once_init_value, 1);
+     }
+ }
+diff --git a/src/goabackend/goaprovider.h b/src/goabackend/goaprovider.h
+index c4bcf91..e7e8a78 100644
+--- a/src/goabackend/goaprovider.h
++++ b/src/goabackend/goaprovider.h
+@@ -109,6 +109,11 @@ GtkWidget *goa_util_add_row_switch_from_keyfile_with_blurb (GtkGrid      *grid,
+                                                             const gchar  *key,
+                                                             const gchar  *blurb);
+ 
++GKeyFile *      goa_util_open_goa_conf               (void);
++gboolean        goa_util_provider_feature_is_enabled (GKeyFile *goa_conf,
++                                                      const gchar *provider_type,
++                                                      GoaProviderFeatures feature);
++
+ G_END_DECLS
+ 
+ #endif /* __GOA_PROVIDER_H__ */
+diff --git a/src/goabackend/goawindowsliveprovider.c b/src/goabackend/goawindowsliveprovider.c
+index 0ac5efb..628988d 100644
+--- a/src/goabackend/goawindowsliveprovider.c
++++ b/src/goabackend/goawindowsliveprovider.c
+@@ -244,6 +244,8 @@ build_object (GoaProvider         *provider,
+ {
+   GoaAccount *account = NULL;
+   GoaMail *mail = NULL;
++  GKeyFile *goa_conf;
++  const gchar *provider_type;
+   gboolean mail_enabled;
+   gboolean ret = FALSE;
+   const gchar *email_address;
+@@ -258,12 +260,18 @@ build_object (GoaProvider         *provider,
+                                                                               error))
+     goto out;
+ 
++  provider_type = goa_provider_get_provider_type (provider);
++  goa_conf = goa_util_open_goa_conf ();
+   account = goa_object_get_account (GOA_OBJECT (object));
+   email_address = goa_account_get_presentation_identity (account);
+ 
+   /* Email */
+   mail = goa_object_get_mail (GOA_OBJECT (object));
+-  mail_enabled = g_key_file_get_boolean (key_file, group, "MailEnabled", NULL);
++  mail_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_MAIL) &&
++                 g_key_file_get_boolean (key_file, group, "MailEnabled", NULL);
++
++  g_clear_pointer (&goa_conf, g_key_file_free);
++
+   if (mail_enabled)
+     {
+       if (mail == NULL)
