@@ -5,7 +5,7 @@
 
 Name:		gnome-online-accounts
 Version:	3.40.0
-Release:	7%{?dist}
+Release:	8%{?dist}
 Summary:	Single sign-on framework for GNOME
 
 License:	LGPLv2+
@@ -22,6 +22,7 @@ Patch:		0001-google-Remove-Photos-support.patch
 Patch:		kerberos-fixes.patch
 Patch:		0003-Drop-dependency-on-WebKitGTK-139.patch
 Patch:		0004-Restrict-Services.patch
+Patch:		0005-Mute-no-provider-warning.patch
 
 Obsoletes:	gnome-online-accounts-oauth2 < 3.40.0-5
 
@@ -136,6 +137,9 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %{_datadir}/vala/
 
 %changelog
+* Wed Jan 08 2025 Milan Crha <mcrha@redhat.com> - 3.40.0-8
+- Resolves: RHEL-34647 (goa-daemon: Mute "Unsupported account type ... (no provider)" error)
+
 * Wed Jun 12 2024 Milan Crha <mcrha@redhat.com> - 3.40.0-7
 - Resolves: RHEL-40831 (Use /etc/goa.conf to disable features for providers and whole providers)
 
