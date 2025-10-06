@@ -1,0 +1,77 @@
+diff -up gnome-online-accounts-3.51.0/src/goabackend/goagoogleprovider.c.1 gnome-online-accounts-3.51.0/src/goabackend/goagoogleprovider.c
+--- gnome-online-accounts-3.51.0/src/goabackend/goagoogleprovider.c.1	2024-06-29 03:16:48.000000000 +0200
++++ gnome-online-accounts-3.51.0/src/goabackend/goagoogleprovider.c	2024-07-16 15:19:45.450083253 +0200
+@@ -69,8 +69,7 @@ get_provider_features (GoaProvider *prov
+   return GOA_PROVIDER_FEATURE_BRANDED |
+          GOA_PROVIDER_FEATURE_MAIL |
+          GOA_PROVIDER_FEATURE_CALENDAR |
+-         GOA_PROVIDER_FEATURE_CONTACTS |
+-         GOA_PROVIDER_FEATURE_FILES;
++         GOA_PROVIDER_FEATURE_CONTACTS;
+ }
+ 
+ static const gchar *
+@@ -140,9 +139,6 @@ get_scope (GoaOAuth2Provider *oauth2_pro
+          /* Google Contacts API (CardDAV) - undocumented */
+          "https://www.googleapis.com/auth/carddav "
+ 
+-         /* Google Drive API */
+-         "https://www.googleapis.com/auth/drive "
+-
+          /* Google Documents List Data API */
+          "https://docs.googleusercontent.com/ "
+          "https://spreadsheets.google.com/feeds/ "
+@@ -276,12 +272,10 @@ build_object (GoaProvider         *provi
+   GKeyFile *goa_conf;
+   const gchar *provider_type;
+   gchar *uri_caldav;
+-  gchar *uri_drive;
+   gboolean ret = FALSE;
+   gboolean mail_enabled;
+   gboolean calendar_enabled;
+   gboolean contacts_enabled;
+-  gboolean files_enabled;
+   const gchar *email_address;
+ 
+   /* Chain up */
+@@ -346,13 +340,6 @@ build_object (GoaProvider         *provi
+                                        contacts_enabled,
+                                        FALSE);
+ 
+-  /* Files */
+-  files_enabled = goa_util_provider_feature_is_enabled (goa_conf, provider_type, GOA_PROVIDER_FEATURE_FILES) &&
+-                  g_key_file_get_boolean (key_file, group, "FilesEnabled", NULL);
+-  uri_drive = g_strconcat ("google-drive://", email_address, "/", NULL);
+-  goa_object_skeleton_attach_files (object, uri_drive, files_enabled, FALSE);
+-  g_free (uri_drive);
+-
+   g_clear_pointer (&goa_conf, g_key_file_free);
+ 
+   if (just_added)
+@@ -360,7 +347,6 @@ build_object (GoaProvider         *provi
+       goa_account_set_mail_disabled (account, !mail_enabled);
+       goa_account_set_calendar_disabled (account, !calendar_enabled);
+       goa_account_set_contacts_disabled (account, !contacts_enabled);
+-      goa_account_set_files_disabled (account, !files_enabled);
+ 
+       g_signal_connect (account,
+                         "notify::mail-disabled",
+@@ -374,10 +360,6 @@ build_object (GoaProvider         *provi
+                         "notify::contacts-disabled",
+                         G_CALLBACK (goa_util_account_notify_property_cb),
+                         (gpointer) "ContactsEnabled");
+-      g_signal_connect (account,
+-                        "notify::files-disabled",
+-                        G_CALLBACK (goa_util_account_notify_property_cb),
+-                        (gpointer) "FilesEnabled");
+     }
+ 
+   ret = TRUE;
+@@ -397,7 +379,6 @@ add_account_key_values (GoaOAuth2Provide
+   g_variant_builder_add (builder, "{ss}", "MailEnabled", "true");
+   g_variant_builder_add (builder, "{ss}", "CalendarEnabled", "true");
+   g_variant_builder_add (builder, "{ss}", "ContactsEnabled", "true");
+-  g_variant_builder_add (builder, "{ss}", "FilesEnabled", "true");
+ }
+ 
+ /* ---------------------------------------------------------------------------------------------------- */
