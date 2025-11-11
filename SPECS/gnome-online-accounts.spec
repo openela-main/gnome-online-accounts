@@ -5,7 +5,7 @@
 %global libsoup_version 3.0
 
 Name:		gnome-online-accounts
-Version:	3.52.3.1
+Version:	3.52.8
 Release:	1%{?dist}
 Summary:	Single sign-on framework for GNOME
 
@@ -125,6 +125,9 @@ desktop-file-validate %{buildroot}/%{_datadir}/applications/org.gnome.OnlineAcco
 %{_datadir}/vala/
 
 %changelog
+* Mon Jul 14 2025 Milan Crha <mcrha@redhat.com> - 3.52.8-1
+- Resolves: RHEL-103392 (Update to 3.52.8)
+
 * Mon Jan 20 2025 Milan Crha <mcrha@redhat.com> - 3.52.3.1-1
 - Resolves: RHEL-74840 (Update to 3.52.3.1)
 
